@@ -5,6 +5,11 @@ import com.bookkeeping.service.BudgetService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.Map;
 import java.util.HashMap;
 import org.slf4j.Logger;
@@ -123,16 +128,36 @@ public class BudgetController {
     public ResponseEntity<Map<String, Object>> setDailyBudget(@RequestBody Map<String, Object> request) {
         try {
             Long userId = ((Number) request.get("userId")).longValue();
-            String date = (String) request.get("date");
+            String dateStr = (String) request.get("date");
             Double budget = ((Number) request.get("budget")).doubleValue();
-            
+            Boolean setForWholeMonth = ((Boolean) request.get("setForWholeMonth")) ;
+
             Budget userBudget = budgetService.getBudgetByUserId(userId);
             if (userBudget == null) {
                 userBudget = new Budget();
                 userBudget.setUserId(userId);
             }
-            
-            userBudget.getDailyBudgets().put(date, budget);
+            if(setForWholeMonth) {
+                // 解析输入日期
+                LocalDate inputDate = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);
+                // 获取年月信息
+                int year = inputDate.getYear();
+                int month = inputDate.getMonthValue();
+                int daysInMonth = YearMonth.of(year, month).lengthOfMonth();
+                // 初始化 Map 并预分配空间
+                Map<String, Double> budgetMap = new HashMap<>(daysInMonth);
+                // 定义日期格式化器（输出格式为 yyyy-MM-dd）
+                DateTimeFormatter formatter = DateTimeFormatter.ISO_LOCAL_DATE;
+                // 填充 Map
+                for (int day = 1; day <= daysInMonth; day++) {
+                    LocalDate date = LocalDate.of(year, month, day);
+                    String dateKey = date.format(formatter); // 格式化为字符串
+                    budgetMap.put(dateKey, budget);
+                }
+                 userBudget.getDailyBudgets().putAll(budgetMap);
+            }else{
+                userBudget.getDailyBudgets().put(dateStr, budget);
+            }
             Budget updatedBudget = budgetService.saveOrUpdateBudget(userBudget);
             
             Map<String, Object> response = new HashMap<>();
